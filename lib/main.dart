@@ -4,7 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'config/theme.dart';
 import 'providers/theme_provider.dart';
 import 'services/local_storage_service.dart';
-import 'screens/home_screen.dart';
+import 'services/notification_service.dart';
+import 'screens/main_navigation_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,6 +24,9 @@ Future<void> main() async {
 
   // Initialize Hive local storage
   await LocalStorageService.init();
+
+  // Initialize notifications
+  await NotificationService.init();
 
   runApp(
     const ProviderScope(
@@ -44,7 +48,7 @@ class GroceryMateApp extends ConsumerWidget {
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: themeMode,
-      home: const HomeScreen(),
+      home: const MainNavigationScreen(),
     );
   }
 }

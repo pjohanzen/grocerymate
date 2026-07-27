@@ -7,6 +7,7 @@ import '../providers/item_provider.dart';
 import '../services/local_storage_service.dart';
 import '../utils/validators.dart';
 import '../utils/currency_formatter.dart';
+import '../models/item_history.dart';
 
 class AddItemSheet extends ConsumerStatefulWidget {
   final String listId;
@@ -31,7 +32,7 @@ class _AddItemSheetState extends ConsumerState<AddItemSheet> {
   String _selectedUnit = 'pcs';
   String? _selectedCategory;
   int _priority = 1;
-  List<String> _suggestions = [];
+  List<ItemHistory> _suggestions = [];
   bool _showSuggestions = false;
 
   bool get isEditing => widget.editItem != null;
@@ -163,43 +164,66 @@ class _AddItemSheetState extends ConsumerState<AddItemSheet> {
               // Suggestions dropdown
               if (_showSuggestions)
                 Container(
-                  constraints: const BoxConstraints(maxHeight: 120),
+                  margin: const EdgeInsets.only(top: 4),
+                  constraints: const BoxConstraints(maxHeight: 150),
                   decoration: BoxDecoration(
                     color: isDark ? AppTheme.darkSurfaceHigh : Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isDark ? AppTheme.darkBorder : AppTheme.neutral300,
+                      width: 1,
+                    ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.1),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
+                        color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.05),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
                       ),
                     ],
                   ),
-                  child: ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: _suggestions.length,
-                    itemBuilder: (context, index) {
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: _suggestions.length,
+                      itemBuilder: (context, index) {
+                      final suggestion = _suggestions[index];
                       return ListTile(
                         dense: true,
                         title: Text(
-                          _suggestions[index],
+                          suggestion.name,
                           style: AppTheme.bodyRegular.copyWith(
                             color: isDark
                                 ? AppTheme.darkTextPrimary
                                 : AppTheme.neutral900,
                           ),
                         ),
+                        trailing: suggestion.lastPrice != null
+                            ? Text(
+                                CurrencyFormatter.formatWhole(suggestion.lastPrice!),
+                                style: AppTheme.monoRegular.copyWith(fontSize: 12),
+                              )
+                            : null,
                         leading: Icon(Icons.history, size: 18,
                             color: isDark
                                 ? AppTheme.darkTextSecondary
                                 : AppTheme.neutral400),
                         onTap: () {
-                          _nameController.text = _suggestions[index];
-                          setState(() => _showSuggestions = false);
+                          _nameController.text = suggestion.name;
+                          if (suggestion.lastPrice != null) {
+                            _priceController.text = suggestion.lastPrice!.toStringAsFixed(0);
+                          } else {
+                            _priceController.clear();
+                          }
+                          setState(() {
+                            _showSuggestions = false;
+                          });
                         },
                       );
                     },
                   ),
                 ),
+              ),
               const SizedBox(height: 16),
 
               // Quantity + Unit row
@@ -416,7 +440,11 @@ class _AddItemSheetState extends ConsumerState<AddItemSheet> {
             color: isSelected ? color.withValues(alpha: 0.15) : Colors.transparent,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
-              color: isSelected ? color : AppTheme.neutral300,
+              color: isSelected
+                  ? color
+                  : (Theme.of(context).brightness == Brightness.dark
+                      ? AppTheme.darkBorder
+                      : AppTheme.neutral300),
               width: isSelected ? 2 : 1,
             ),
           ),

@@ -255,6 +255,8 @@ class SettingsScreen extends ConsumerWidget {
             onPressed: () async {
               await LocalStorageService.clearAllData();
               ref.read(groceryListsProvider.notifier).refresh();
+              ref.read(themeModeProvider.notifier).refresh();
+              ref.read(listViewModeProvider.notifier).refresh();
               if (context.mounted) {
                 Navigator.pop(context);
                 Navigator.pop(context);

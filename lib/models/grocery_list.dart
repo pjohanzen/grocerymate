@@ -31,6 +31,15 @@ class GroceryList extends HiveObject {
   @HiveField(8)
   String? templateId;
 
+  @HiveField(9)
+  DateTime? shoppingDay;
+
+  @HiveField(10)
+  bool reminderEnabled;
+
+  @HiveField(11)
+  DateTime? reminderDateTime;
+
   GroceryList({
     required this.id,
     required this.name,
@@ -41,6 +50,9 @@ class GroceryList extends HiveObject {
     DateTime? updatedAt,
     this.isArchived = false,
     this.templateId,
+    this.shoppingDay,
+    this.reminderEnabled = false,
+    this.reminderDateTime,
   })  : categoryIds = categoryIds ?? [],
         createdAt = createdAt ?? DateTime.now(),
         updatedAt = updatedAt ?? DateTime.now();
@@ -54,6 +66,9 @@ class GroceryList extends HiveObject {
     String? colorHex,
     bool? isArchived,
     String? templateId,
+    DateTime? shoppingDay,
+    bool? reminderEnabled,
+    DateTime? reminderDateTime,
   }) {
     return GroceryList(
       id: id,
@@ -65,6 +80,9 @@ class GroceryList extends HiveObject {
       updatedAt: DateTime.now(),
       isArchived: isArchived ?? this.isArchived,
       templateId: templateId ?? this.templateId,
+      shoppingDay: shoppingDay ?? this.shoppingDay,
+      reminderEnabled: reminderEnabled ?? this.reminderEnabled,
+      reminderDateTime: reminderDateTime ?? this.reminderDateTime,
     );
   }
 }

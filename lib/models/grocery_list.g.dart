@@ -22,13 +22,16 @@ class GroceryListAdapter extends TypeAdapter<GroceryList> {
       updatedAt: fields[6] as DateTime?,
       isArchived: fields[7] as bool? ?? false,
       templateId: fields[8] as String?,
+      shoppingDay: fields[9] as DateTime?,
+      reminderEnabled: fields[10] as bool? ?? false,
+      reminderDateTime: fields[11] as DateTime?,
     );
   }
 
   @override
   void write(BinaryWriter writer, GroceryList obj) {
     writer
-      ..writeByte(9)
+      ..writeByte(12)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -46,6 +49,12 @@ class GroceryListAdapter extends TypeAdapter<GroceryList> {
       ..writeByte(7)
       ..write(obj.isArchived)
       ..writeByte(8)
-      ..write(obj.templateId);
+      ..write(obj.templateId)
+      ..writeByte(9)
+      ..write(obj.shoppingDay)
+      ..writeByte(10)
+      ..write(obj.reminderEnabled)
+      ..writeByte(11)
+      ..write(obj.reminderDateTime);
   }
 }

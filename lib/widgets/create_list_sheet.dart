@@ -26,6 +26,10 @@ class _CreateListSheetState extends ConsumerState<CreateListSheet> {
   String _selectedColor = AppConstants.listColors.first;
   bool get isEditing => widget.editListId != null;
 
+  DateTime? _shoppingDay;
+  bool _reminderEnabled = false;
+  DateTime? _reminderDateTime;
+
   @override
   void initState() {
     super.initState();
@@ -38,6 +42,9 @@ class _CreateListSheetState extends ConsumerState<CreateListSheet> {
         }
         _selectedCategories = List.from(list.categoryIds);
         _selectedColor = list.colorHex;
+        _shoppingDay = list.shoppingDay;
+        _reminderEnabled = list.reminderEnabled;
+        _reminderDateTime = list.reminderDateTime;
       }
     }
   }
@@ -126,6 +133,152 @@ class _CreateListSheetState extends ConsumerState<CreateListSheet> {
                   prefixText: '₱ ',
                 ),
               ),
+              const SizedBox(height: 20),
+
+              // Shopping Day
+              Text('Shopping Day (optional)',
+                  style: AppTheme.label.copyWith(
+                    color: isDark
+                        ? AppTheme.darkTextSecondary
+                        : AppTheme.neutral600,
+                  )),
+              const SizedBox(height: 8),
+              InkWell(
+                onTap: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: _shoppingDay ?? DateTime.now(),
+                    firstDate: DateTime.now().subtract(const Duration(days: 365)),
+                    lastDate: DateTime.now().add(const Duration(days: 365 * 2)),
+                  );
+                  if (picked != null) {
+                    setState(() => _shoppingDay = picked);
+                  }
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: isDark ? AppTheme.darkSurfaceHigh : AppTheme.neutral200,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.calendar_today, size: 18, color: isDark ? AppTheme.darkTextSecondary : AppTheme.neutral600),
+                      const SizedBox(width: 12),
+                      Text(
+                        _shoppingDay == null
+                            ? 'Select shopping day'
+                            : _shoppingDay!.shortDate,
+                        style: AppTheme.bodyRegular.copyWith(
+                          color: _shoppingDay == null
+                              ? (isDark ? AppTheme.darkTextSecondary.withValues(alpha: 0.5) : AppTheme.neutral500)
+                              : (isDark ? AppTheme.darkTextPrimary : AppTheme.neutral900),
+                        ),
+                      ),
+                      if (_shoppingDay != null) ...[
+                        const Spacer(),
+                        GestureDetector(
+                          onTap: () => setState(() => _shoppingDay = null),
+                          child: Icon(Icons.clear, size: 18, color: isDark ? AppTheme.darkTextSecondary : AppTheme.neutral500),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Set Reminder
+              SwitchListTile(
+                title: Text(
+                  'Set Reminder',
+                  style: AppTheme.label.copyWith(
+                    color: isDark ? AppTheme.darkTextPrimary : AppTheme.neutral900,
+                  ),
+                ),
+                subtitle: Text(
+                  'Get notified before shopping',
+                  style: AppTheme.caption.copyWith(
+                    color: isDark ? AppTheme.darkTextSecondary : AppTheme.neutral500,
+                  ),
+                ),
+                value: _reminderEnabled,
+                onChanged: (val) {
+                  setState(() {
+                    _reminderEnabled = val;
+                    if (val && _reminderDateTime == null) {
+                      _reminderDateTime = DateTime.now().add(const Duration(days: 1));
+                    }
+                  });
+                },
+                contentPadding: EdgeInsets.zero,
+                activeThumbColor: AppTheme.primary,
+              ),
+
+              if (_reminderEnabled) ...[
+                const SizedBox(height: 8),
+                InkWell(
+                  onTap: () async {
+                    final initialDate = _reminderDateTime ?? DateTime.now();
+                    final pickedDate = await showDatePicker(
+                      context: context,
+                      initialDate: initialDate,
+                      firstDate: DateTime.now(),
+                      lastDate: DateTime.now().add(const Duration(days: 365 * 2)),
+                    );
+                    if (pickedDate != null && context.mounted) {
+                      final pickedTime = await showTimePicker(
+                        context: context,
+                        initialTime: TimeOfDay.fromDateTime(initialDate),
+                      );
+                      if (pickedTime != null) {
+                        final now = DateTime.now();
+                        final selected = DateTime(
+                          pickedDate.year,
+                          pickedDate.month,
+                          pickedDate.day,
+                          pickedTime.hour,
+                          pickedTime.minute,
+                        );
+                        if (selected.isBefore(now)) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Please select a future date and time.'),
+                              ),
+                            );
+                          }
+                        } else {
+                          setState(() {
+                            _reminderDateTime = selected;
+                          });
+                        }
+                      }
+                    }
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: isDark ? AppTheme.darkSurfaceHigh : AppTheme.neutral200,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.alarm, size: 18, color: isDark ? AppTheme.darkTextSecondary : AppTheme.neutral600),
+                        const SizedBox(width: 12),
+                        Text(
+                          _reminderDateTime == null
+                              ? 'Select reminder time'
+                              : '${_reminderDateTime!.shortDate} at ${TimeOfDay.fromDateTime(_reminderDateTime!).format(context)}',
+                          style: AppTheme.bodyRegular.copyWith(
+                            color: isDark ? AppTheme.darkTextPrimary : AppTheme.neutral900,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(height: 20),
 
               // Categories
@@ -240,6 +393,9 @@ class _CreateListSheetState extends ConsumerState<CreateListSheet> {
           budget: budget,
           categoryIds: _selectedCategories,
           colorHex: _selectedColor,
+          shoppingDay: _shoppingDay,
+          reminderEnabled: _reminderEnabled,
+          reminderDateTime: _reminderDateTime,
         );
         ref.read(groceryListsProvider.notifier).updateList(updated);
       }
@@ -249,6 +405,9 @@ class _CreateListSheetState extends ConsumerState<CreateListSheet> {
             budget: budget,
             categoryIds: _selectedCategories,
             colorHex: _selectedColor,
+            shoppingDay: _shoppingDay,
+            reminderEnabled: _reminderEnabled,
+            reminderDateTime: _reminderDateTime,
           );
     }
 

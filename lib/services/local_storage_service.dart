@@ -3,7 +3,9 @@ import '../models/grocery_list.dart';
 import '../models/list_item.dart';
 import '../models/category.dart';
 import '../models/template.dart';
+import '../models/item_history.dart';
 import '../config/constants.dart';
+import 'notification_service.dart';
 
 class LocalStorageService {
   static late Box<GroceryList> _listsBox;
@@ -11,7 +13,9 @@ class LocalStorageService {
   static late Box<Category> _categoriesBox;
   static late Box<ListTemplate> _templatesBox;
   static late Box _settingsBox;
-  static late Box<String> _historyBox;
+  static late Box _historyBox;
+  static late Box _pantryBox;
+  static late Box _barcodesBox;
 
   static Future<void> init() async {
     await Hive.initFlutter();
@@ -22,6 +26,7 @@ class LocalStorageService {
     Hive.registerAdapter(CategoryAdapter());
     Hive.registerAdapter(TemplateItemAdapter());
     Hive.registerAdapter(ListTemplateAdapter());
+    Hive.registerAdapter(ItemHistoryAdapter());
 
     // Open boxes
     _listsBox = await Hive.openBox<GroceryList>(AppConstants.listsBox);
@@ -29,10 +34,13 @@ class LocalStorageService {
     _categoriesBox = await Hive.openBox<Category>(AppConstants.categoriesBox);
     _templatesBox = await Hive.openBox<ListTemplate>(AppConstants.templatesBox);
     _settingsBox = await Hive.openBox(AppConstants.settingsBox);
-    _historyBox = await Hive.openBox<String>(AppConstants.historyBox);
+    _historyBox = await Hive.openBox(AppConstants.historyBox);
+    _pantryBox = await Hive.openBox('pantry_items');
+    _barcodesBox = await Hive.openBox('scanned_barcodes');
 
     // Seed defaults if first launch
     await _seedDefaults();
+    await seedInitialPantryItems();
   }
 
   static Future<void> _seedDefaults() async {
@@ -44,8 +52,8 @@ class LocalStorageService {
     }
 
     // Seed templates
-    if (_templatesBox.isEmpty) {
-      for (final tmpl in ListTemplate.presets) {
+    for (final tmpl in ListTemplate.presets) {
+      if (!_templatesBox.containsKey(tmpl.id)) {
         await _templatesBox.put(tmpl.id, tmpl);
       }
     }
@@ -60,15 +68,22 @@ class LocalStorageService {
       ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
   }
 
+  static List<GroceryList> getAllListsIncludingArchived() {
+    return _listsBox.values.toList()
+      ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+  }
+
   static GroceryList? getList(String id) {
     return _listsBox.get(id);
   }
 
   static Future<void> saveList(GroceryList list) async {
     await _listsBox.put(list.id, list);
+    await NotificationService.scheduleReminder(list);
   }
 
   static Future<void> deleteList(String id) async {
+    await NotificationService.cancelReminder(id);
     // Delete all items in the list
     final items = getItemsForList(id);
     for (final item in items) {
@@ -83,6 +98,7 @@ class LocalStorageService {
       list.isArchived = true;
       list.updatedAt = DateTime.now();
       await list.save();
+      await NotificationService.cancelReminder(id);
     }
   }
 
@@ -115,7 +131,7 @@ class LocalStorageService {
       await list.save();
     }
     // Add to history
-    await addToHistory(item.name);
+    await addToHistory(item.name, item.unitPrice);
   }
 
   static Future<void> deleteItem(String itemId) async {
@@ -181,22 +197,54 @@ class LocalStorageService {
 
   // ─── Item History (Autocomplete) ──────────────────────────────
 
-  static Future<void> addToHistory(String itemName) async {
-    final name = itemName.trim().toLowerCase();
-    if (name.isNotEmpty) {
-      await _historyBox.put(name, itemName.trim());
-    }
+  static Future<void> addToHistory(String itemName, [double? lastPrice]) async {
+    final name = itemName.trim();
+    if (name.isEmpty) return;
+    final key = name.toLowerCase();
+    final record = ItemHistory(
+      name: name,
+      lastPrice: lastPrice,
+      lastUpdated: DateTime.now(),
+    );
+    await _historyBox.put(key, record);
   }
 
-  static List<String> searchHistory(String query) {
-    if (query.trim().isEmpty) {
-      return _historyBox.values.take(10).toList();
+  static List<ItemHistory> searchHistory(String query) {
+    final rawValues = _historyBox.values.toList();
+    final List<ItemHistory> historyList = [];
+    for (final val in rawValues) {
+      if (val is String) {
+        historyList.add(ItemHistory(
+          name: val,
+          lastUpdated: DateTime.now().subtract(const Duration(days: 30)),
+        ));
+      } else if (val is ItemHistory) {
+        historyList.add(val);
+      }
     }
-    final q = query.toLowerCase();
-    return _historyBox.values
-        .where((name) => name.toLowerCase().contains(q))
-        .take(10)
-        .toList();
+
+    if (query.trim().isEmpty) {
+      historyList.sort((a, b) => b.lastUpdated.compareTo(a.lastUpdated));
+      return historyList.take(10).toList();
+    }
+
+    final q = query.trim().toLowerCase();
+    final matches = historyList.where((item) {
+      return item.name.toLowerCase().contains(q);
+    }).toList();
+
+    matches.sort((a, b) {
+      final aName = a.name.toLowerCase();
+      final bName = b.name.toLowerCase();
+      final aStartsWith = aName.startsWith(q);
+      final bStartsWith = bName.startsWith(q);
+
+      if (aStartsWith && !bStartsWith) return -1;
+      if (!aStartsWith && bStartsWith) return 1;
+      return b.lastUpdated.compareTo(a.lastUpdated);
+    });
+
+    return matches.take(10).toList();
   }
 
   static Future<void> clearHistory() async {
@@ -245,9 +293,69 @@ class LocalStorageService {
     await _templatesBox.clear();
     await _historyBox.clear();
     await _settingsBox.clear();
+    await _pantryBox.clear();
+    await _barcodesBox.clear();
     await _seedDefaults();
+    await seedInitialPantryItems();
   }
 
   static int get totalListsCount => _listsBox.values.where((l) => !l.isArchived).length;
   static int get totalItemsCount => _itemsBox.length;
+
+  // ─── Barcode Scanning ──────────────────────────────────────────
+
+  static Map<dynamic, dynamic>? getBarcodeProduct(String barcode) {
+    final offlineDB = {
+      '4800003010123': {'name': 'Milo 22g', 'categoryId': 'beverages', 'price': 15.0},
+      '4800003010456': {'name': 'Coca-Cola 1.5L', 'categoryId': 'beverages', 'price': 72.0},
+      '4800012345678': {'name': 'Safeguard White 130g', 'categoryId': 'household', 'price': 54.0},
+      '4800022334455': {'name': 'Gardenia Classic Loaf', 'categoryId': 'pantry', 'price': 85.0},
+      '4800033445566': {'name': 'Century Tuna 180g', 'categoryId': 'pantry', 'price': 42.0},
+      '4800044556677': {'name': 'Lucky Me! Pancit Canton', 'categoryId': 'pantry', 'price': 18.0},
+    };
+
+    if (offlineDB.containsKey(barcode)) {
+      return offlineDB[barcode];
+    }
+
+    final stored = _barcodesBox.get(barcode);
+    if (stored != null) {
+      return Map<dynamic, dynamic>.from(stored);
+    }
+
+    return null;
+  }
+
+  static Future<void> saveBarcodeProduct(String barcode, Map<String, dynamic> product) async {
+    await _barcodesBox.put(barcode, product);
+  }
+
+  // ─── Pantry Inventory ──────────────────────────────────────────
+
+  static List<Map<dynamic, dynamic>> getAllPantryItems() {
+    return _pantryBox.values.map((v) => Map<dynamic, dynamic>.from(v)).toList();
+  }
+
+  static Future<void> savePantryItem(Map<String, dynamic> item) async {
+    await _pantryBox.put(item['id'], item);
+  }
+
+  static Future<void> deletePantryItem(String id) async {
+    await _pantryBox.delete(id);
+  }
+
+  static Future<void> seedInitialPantryItems() async {
+    if (_pantryBox.isEmpty) {
+      final initialItems = [
+        {'id': 'pantry_milk', 'name': 'Milk', 'quantity': 2.0, 'unit': 'L', 'categoryId': 'dairy', 'minStock': 1.0},
+        {'id': 'pantry_eggs', 'name': 'Eggs', 'quantity': 12.0, 'unit': 'pcs', 'categoryId': 'dairy', 'minStock': 6.0},
+        {'id': 'pantry_rice', 'name': 'Rice', 'quantity': 5.0, 'unit': 'kg', 'categoryId': 'pantry', 'minStock': 10.0},
+        {'id': 'pantry_bread', 'name': 'Bread', 'quantity': 0.0, 'unit': 'pcs', 'categoryId': 'pantry', 'minStock': 1.0},
+        {'id': 'pantry_chicken', 'name': 'Chicken Breast', 'quantity': 3.0, 'unit': 'kg', 'categoryId': 'meat', 'minStock': 1.5},
+      ];
+      for (final item in initialItems) {
+        await _pantryBox.put(item['id'], item);
+      }
+    }
+  }
 }

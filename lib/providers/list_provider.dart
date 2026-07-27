@@ -31,6 +31,9 @@ class GroceryListsNotifier extends StateNotifier<List<GroceryList>> {
     List<String>? categoryIds,
     String colorHex = '#2D5016',
     String? templateId,
+    DateTime? shoppingDay,
+    bool reminderEnabled = false,
+    DateTime? reminderDateTime,
   }) async {
     final list = GroceryList(
       id: _uuid.v4(),
@@ -39,6 +42,9 @@ class GroceryListsNotifier extends StateNotifier<List<GroceryList>> {
       categoryIds: categoryIds,
       colorHex: colorHex,
       templateId: templateId,
+      shoppingDay: shoppingDay,
+      reminderEnabled: reminderEnabled,
+      reminderDateTime: reminderDateTime,
     );
     await LocalStorageService.saveList(list);
     _loadLists();
@@ -85,38 +91,7 @@ class GroceryListsNotifier extends StateNotifier<List<GroceryList>> {
     _loadLists();
   }
 
-  Future<GroceryList> duplicateList(String id) async {
-    final original = LocalStorageService.getList(id);
-    if (original == null) throw Exception('List not found');
 
-    final newList = await createList(
-      name: '${original.name} (Copy)',
-      budget: original.budget,
-      categoryIds: List.from(original.categoryIds),
-      colorHex: original.colorHex,
-    );
-
-    // Copy items
-    final items = LocalStorageService.getItemsForList(id);
-    for (final item in items) {
-      final newItem = ListItem(
-        id: _uuid.v4(),
-        listId: newList.id,
-        name: item.name,
-        quantity: item.quantity,
-        unit: item.unit,
-        unitPrice: item.unitPrice,
-        categoryId: item.categoryId,
-        priority: item.priority,
-        notes: item.notes,
-        sortOrder: item.sortOrder,
-      );
-      await LocalStorageService.saveItem(newItem);
-    }
-
-    _loadLists();
-    return newList;
-  }
 }
 
 // ─── Selected List ──────────────────────────────────────────────

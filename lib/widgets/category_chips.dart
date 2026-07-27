@@ -19,6 +19,8 @@ class CategoryChips extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final primaryColor = theme.colorScheme.primary;
 
     final chips = categories.map((cat) {
       final isSelected = selectedIds.contains(cat.id);
@@ -26,14 +28,15 @@ class CategoryChips extends StatelessWidget {
         padding: const EdgeInsets.only(right: 8),
         child: FilterChip(
           selected: isSelected,
+          showCheckmark: false, // Cleaner Outfit look without the checkmark
           label: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
                 Category.getIconData(cat.icon),
-                size: 16,
+                size: 15,
                 color: isSelected
-                    ? AppTheme.primary
+                    ? (isDark ? Colors.black : Colors.white)
                     : (isDark ? AppTheme.darkTextSecondary : AppTheme.neutral500),
               ),
               const SizedBox(width: 6),
@@ -42,20 +45,23 @@ class CategoryChips extends StatelessWidget {
           ),
           labelStyle: AppTheme.label.copyWith(
             color: isSelected
-                ? AppTheme.primary
+                ? (isDark ? Colors.black : Colors.white)
                 : (isDark ? AppTheme.darkTextPrimary : AppTheme.neutral700),
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
           ),
           onSelected: (_) => onToggle(cat.id),
-          selectedColor: isDark
-              ? AppTheme.primaryLight.withValues(alpha: 0.25)
-              : AppTheme.primary.withValues(alpha: 0.12),
-          checkmarkColor: AppTheme.primary,
+          selectedColor: primaryColor,
           backgroundColor: isDark ? AppTheme.darkSurfaceHigh : AppTheme.neutral200,
-          side: BorderSide.none,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
+          side: BorderSide(
+            color: isSelected
+                ? primaryColor
+                : (isDark ? AppTheme.darkBorder : AppTheme.neutral300),
+            width: 1,
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
         ),
       );
@@ -64,12 +70,14 @@ class CategoryChips extends StatelessWidget {
     if (scrollable) {
       return SingleChildScrollView(
         scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Row(children: chips),
       );
     }
 
     return Wrap(
-      spacing: 0,
+      spacing: 8,
       runSpacing: 8,
       children: chips,
     );

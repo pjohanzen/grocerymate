@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import '../models/list_item.dart';
 import '../models/category.dart';
+import '../models/item_history.dart';
 import '../services/local_storage_service.dart';
 
 const _uuid = Uuid();
@@ -108,9 +109,90 @@ final groupedItemsProvider =
   return sorted;
 });
 
+// ─── Search & Filter State ──────────────────────────────────────
+
+enum ItemStatusFilter { all, toBuy, completed }
+
+final searchQueryProvider =
+    StateProvider.family<String, String>((ref, listId) => '');
+
+final categoryFilterProvider =
+    StateProvider.family<Set<String>, String>((ref, listId) => {});
+
+final statusFilterProvider =
+    StateProvider.family<ItemStatusFilter, String>(
+        (ref, listId) => ItemStatusFilter.all);
+
+// ─── Filtered Items ─────────────────────────────────────────────
+
+final filteredItemsProvider =
+    Provider.family<List<ListItem>, String>((ref, listId) {
+  final items = ref.watch(listItemsProvider(listId));
+  final query = ref.watch(searchQueryProvider(listId)).toLowerCase();
+  final selectedCategories = ref.watch(categoryFilterProvider(listId));
+  final statusFilter = ref.watch(statusFilterProvider(listId));
+
+  return items.where((item) {
+    // Search filter
+    if (query.isNotEmpty && !item.name.toLowerCase().contains(query)) {
+      return false;
+    }
+    // Category filter
+    if (selectedCategories.isNotEmpty) {
+      final catId = item.categoryId ?? 'other';
+      if (!selectedCategories.contains(catId)) return false;
+    }
+    // Status filter
+    if (statusFilter == ItemStatusFilter.toBuy && item.isCompleted) {
+      return false;
+    }
+    if (statusFilter == ItemStatusFilter.completed && !item.isCompleted) {
+      return false;
+    }
+    return true;
+  }).toList();
+});
+
+final filteredGroupedItemsProvider =
+    Provider.family<Map<String, List<ListItem>>, String>((ref, listId) {
+  final items = ref.watch(filteredItemsProvider(listId));
+  final grouped = <String, List<ListItem>>{};
+
+  for (final item in items) {
+    final catId = item.categoryId ?? 'other';
+    grouped.putIfAbsent(catId, () => []);
+    grouped[catId]!.add(item);
+  }
+
+  // Sort categories by default order
+  final categories = LocalStorageService.getAllCategories();
+  final catOrder = {for (final c in categories) c.id: c.sortOrder};
+
+  final sorted = Map.fromEntries(
+    grouped.entries.toList()
+      ..sort((a, b) {
+        final orderA = catOrder[a.key] ?? 999;
+        final orderB = catOrder[b.key] ?? 999;
+        return orderA.compareTo(orderB);
+      }),
+  );
+
+  return sorted;
+});
+
+final hasActiveFiltersProvider =
+    Provider.family<bool, String>((ref, listId) {
+  final query = ref.watch(searchQueryProvider(listId));
+  final categories = ref.watch(categoryFilterProvider(listId));
+  final status = ref.watch(statusFilterProvider(listId));
+  return query.isNotEmpty ||
+      categories.isNotEmpty ||
+      status != ItemStatusFilter.all;
+});
+
 // ─── Item History / Autocomplete ────────────────────────────────
 
-final itemHistoryProvider = Provider.family<List<String>, String>((ref, query) {
+final itemHistoryProvider = Provider.family<List<ItemHistory>, String>((ref, query) {
   return LocalStorageService.searchHistory(query);
 });
 

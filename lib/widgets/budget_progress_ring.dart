@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../config/theme.dart';
+import '../utils/currency_formatter.dart';
 
 class BudgetProgressRing extends StatelessWidget {
   final double percentage;
@@ -15,7 +16,7 @@ class BudgetProgressRing extends StatelessWidget {
     required this.spent,
     this.budget,
     this.size = 180,
-    this.strokeWidth = 12,
+    this.strokeWidth = 10,
   });
 
   @override
@@ -34,14 +35,14 @@ class BudgetProgressRing extends StatelessWidget {
             size: Size(size, size),
             painter: _RingPainter(
               progress: 1.0,
-              color: isDark ? AppTheme.darkSurfaceHigh : AppTheme.neutral200,
+              color: isDark ? AppTheme.darkBorder : AppTheme.neutral200,
               strokeWidth: strokeWidth,
             ),
           ),
-          // Progress ring
+          // Progress ring with easeOutCubic curve
           TweenAnimationBuilder<double>(
-            tween: Tween(begin: 0, end: percentage.clamp(0.0, 1.0)),
-            duration: const Duration(milliseconds: 800),
+            tween: Tween(begin: 0.0, end: percentage.clamp(0.0, 1.0)),
+            duration: const Duration(milliseconds: 1000),
             curve: Curves.easeOutCubic,
             builder: (context, value, child) {
               return CustomPaint(
@@ -54,7 +55,7 @@ class BudgetProgressRing extends StatelessWidget {
               );
             },
           ),
-          // Center text
+          // Center Text Layout
           Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -62,15 +63,26 @@ class BudgetProgressRing extends StatelessWidget {
                 '${(percentage * 100).round()}%',
                 style: AppTheme.monoLarge.copyWith(
                   color: color,
-                  fontSize: size * 0.17,
+                  fontSize: size * 0.18,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
               const SizedBox(height: 2),
               Text(
-                'spent',
+                'SPENT',
                 style: AppTheme.caption.copyWith(
                   color: isDark ? AppTheme.darkTextSecondary : AppTheme.neutral500,
-                  fontSize: size * 0.07,
+                  fontSize: size * 0.065,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.0,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                CurrencyFormatter.formatWhole(spent),
+                style: AppTheme.monoBold.copyWith(
+                  color: isDark ? AppTheme.darkTextPrimary : AppTheme.neutral900,
+                  fontSize: size * 0.09,
                 ),
               ),
             ],
@@ -142,14 +154,13 @@ class BudgetProgressBar extends StatelessWidget {
       child: SizedBox(
         height: height,
         child: TweenAnimationBuilder<double>(
-          tween: Tween(begin: 0, end: percentage.clamp(0.0, 1.0)),
+          tween: Tween(begin: 0.0, end: percentage.clamp(0.0, 1.0)),
           duration: const Duration(milliseconds: 600),
           curve: Curves.easeOutCubic,
           builder: (context, value, child) {
             return LinearProgressIndicator(
               value: value,
-              backgroundColor:
-                  isDark ? AppTheme.darkSurfaceHigh : AppTheme.neutral200,
+              backgroundColor: isDark ? AppTheme.darkBorder : AppTheme.neutral200,
               valueColor: AlwaysStoppedAnimation(color),
             );
           },

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../services/theme_service.dart';
 import '../services/local_storage_service.dart';
 
 // ─── Theme Mode Provider ────────────────────────────────────────
@@ -15,29 +16,16 @@ class ThemeModeNotifier extends StateNotifier<ThemeMode> {
   }
 
   void _load() {
-    final mode = LocalStorageService.getSetting<String>('theme_mode');
-    switch (mode) {
-      case 'light':
-        state = ThemeMode.light;
-        break;
-      case 'dark':
-        state = ThemeMode.dark;
-        break;
-      default:
-        state = ThemeMode.system;
-    }
+    state = ThemeService.loadThemeMode();
   }
 
   Future<void> setThemeMode(ThemeMode mode) async {
     state = mode;
-    await LocalStorageService.setSetting(
-      'theme_mode',
-      mode == ThemeMode.light
-          ? 'light'
-          : mode == ThemeMode.dark
-              ? 'dark'
-              : 'system',
-    );
+    await ThemeService.saveThemeMode(mode);
+  }
+
+  void refresh() {
+    _load();
   }
 }
 
@@ -66,5 +54,9 @@ class ListViewModeNotifier extends StateNotifier<ListViewMode> {
       'list_view_mode',
       state == ListViewMode.list ? 'list' : 'grid',
     );
+  }
+
+  void refresh() {
+    _load();
   }
 }
